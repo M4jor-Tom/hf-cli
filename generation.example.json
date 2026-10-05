@@ -1,0 +1,11 @@
+{
+  "positive_prompt": "A red fox in a snowy forest, soft morning light",
+  "negative_prompt": "blurry, low quality, watermark",
+  "prepend_recommended_prefix": true,
+  "width": 1408,
+  "height": 1408,
+  "steps": 35,
+  "cfg_scale": 6.0,
+  "sigma_shift": 0.0,
+  "seed": -1
+}

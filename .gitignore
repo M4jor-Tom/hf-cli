@@ -1,0 +1,6 @@
+cookies/*
+!cookies/.gitkeep
+downloads/
+.direnv/
+/result
+/result-*

@@ -53,13 +53,13 @@ node tests/test-save-download.mjs
 nix run .#default -- ./generation.example.json
 ```
 
-Form mapping can be rechecked with the committed Firefox runner:
+The offline `tests/test-form-mapping.ts` uses a synthetic form fixture; it does not inspect Hugging Face. To check the live Space form without submitting a generation, run:
 
 ```sh
 cd /home/theta/repos/replay_right
 nix develop . --command node --experimental-strip-types pw/runner.ts \
   /home/theta/repos/hf-cli/cookies \
-  /home/theta/repos/hf-cli/tests/test-form-mapping.ts
+  /home/theta/repos/hf-cli/tests/test-live-form-mapping.ts
 ```
 
 ### Related

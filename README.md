@@ -25,4 +25,10 @@ nix flake check
 node tests/test-save-download.mjs
 ```
 
-The validation contract is also covered by the flake check.
+The validation contract is also covered by the flake check. The local form fixture checks locator behavior offline; to check the current Hugging Face UI without starting a generation, run the live smoke test from this repo:
+
+```sh
+HF_CLI_DIR="$(pwd)"
+(cd ../replay_right && nix develop . --command node --experimental-strip-types \
+  pw/runner.ts "$HF_CLI_DIR/cookies" "$HF_CLI_DIR/tests/test-live-form-mapping.ts")
+```

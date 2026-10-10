@@ -7,7 +7,7 @@ A Nix-flake consumer of [`replay_right`](../replay_right) for generating images 
 If the Space requires Hugging Face login, open the persistent jailed Firefox profile and log in manually:
 
 ```sh
-nix run .#browser -- ./cookies
+nix run .#join -- ./cookies
 ```
 
 Close that browser, then select a JSON request file:

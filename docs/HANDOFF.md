@@ -38,7 +38,7 @@ Continue with the approved jailed Firefox backend. It uses Nixpkgs’ matching P
 
 ### Next steps, in order
 
-1. **User:** From `/home/theta/repos/hf-cli`, run `nix run .#browser -- ./cookies`, sign in to Hugging Face in the opened Firefox window, close Firefox completely, then tell the assistant the profile is ready. Keep credentials private; do not provide tokens.
+1. **User:** From `/home/theta/repos/hf-cli`, run `nix run .#join -- ./cookies`, sign in to Hugging Face in the opened Firefox window, close Firefox completely, then tell the assistant the profile is ready. Keep credentials private; do not provide tokens.
 2. **Assistant:** Confirm the browser is closed, then run `nix run .#default -- ./generation.example.json` from `hf-cli`.
 3. **Assistant:** If generation succeeds, verify the non-empty image is under `downloads/` and that its basename and format match the browser download’s `suggestedFilename()`. Do not rename or convert it.
 4. **Assistant:** If it still fails, capture the current Space error and diagnose that failure before editing. Keep the jail, fixed Space URL, manual-auth boundary, and download-name preservation intact.

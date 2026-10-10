@@ -22,6 +22,13 @@
         cookiesDir = "./cookies";
         script = "${taskBundle}/task.ts";
       };
+      signupUrl = "https://huggingface.co/join";
+      joinApp = pkgs.writeShellApplication {
+        name = "hf-cli-join";
+        text = ''
+          exec ${replay_right.apps.${system}.browser.program} "$@" "${signupUrl}"
+        '';
+      };
       app = pkgs.writeShellApplication {
         name = "hf-image-generation";
         runtimeInputs = [ pythonEnv pkgs.coreutils ];
@@ -39,7 +46,7 @@
     in {
       apps.${system} = {
         default = { type = "app"; program = "${app}/bin/hf-image-generation"; };
-        browser = replay_right.apps.${system}.browser;
+        join = { type = "app"; program = "${joinApp}/bin/hf-cli-join"; };
       };
 
       checks.${system} = {
@@ -54,6 +61,13 @@
           nativeBuildInputs = [ pkgs.nodejs_22 ];
         } ''
           HF_CLI_TASK_PATH=${taskBundle}/task.ts node --experimental-strip-types --test ${./tests/test-task-package.mjs}
+          touch "$out"
+        '';
+
+        join-start-url = pkgs.runCommand "hf-cli-join-start-url" {
+          nativeBuildInputs = [ pkgs.gnugrep ];
+        } ''
+          grep -Fq 'https://huggingface.co/join' ${joinApp}/bin/hf-cli-join
           touch "$out"
         '';
       };

@@ -18,6 +18,8 @@ nix run .#default -- ./generation.example.json
 
 Use any JSON file conforming to [`generation.schema.json`](generation.schema.json). The app validates it before launching Firefox. Downloads go in `downloads/` and keep the filename and extension suggested by the Space.
 
+If Hugging Face reports a generation quota or usage limit, its message is printed and the command exits non-zero.
+
 ## Use your installed Firefox
 
 To use a normal named Firefox profile outside the jail:

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Page } from 'playwright-core';
@@ -16,6 +16,7 @@ export async function run(page: Page): Promise<void> {
   const previousInput = process.env.HF_CLI_INPUT;
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let task: Promise<void> | undefined;
+  let resultMode: 'image' | 'limit' = 'image';
   const server = createServer((req, res) => {
     if (req.url === '/image' || req.url === '/download') {
       res.setHeader('content-type', 'image/png');
@@ -28,7 +29,8 @@ export async function run(page: Page): Promise<void> {
         <div class="block"><label>Unrelated preview</label><img src="/image" alt="">
           <a data-testid="download-link" href="/wrong"><button aria-label="Download">Wrong download</button></a>
         </div>
-        <button onclick="document.getElementById('result').hidden = false">Generate</button>
+        <button onclick="document.getElementById('${resultMode === 'limit' ? 'limit' : 'result'}').hidden = false">Generate</button>
+        <div id="limit" role="alert" hidden>Guest quota reached</div>
         <div class="block"><label data-testid="block-label">Output</label>
           <div id="result" hidden><img src="/image" alt="">
             <a data-testid="download-link" href="/download" download="link-name.png"><button aria-label="Download">Download</button></a>
@@ -59,9 +61,20 @@ export async function run(page: Page): Promise<void> {
       task,
       new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error('Visible Gradio result was not downloaded')), 20_000); }),
     ]);
+    clearTimeout(deadline);
     assert.deepEqual(readdirSync(join(dir, 'downloads')), ['browser.original.png']);
     assert.deepEqual(readFileSync(join(dir, 'downloads/browser.original.png')), png);
-    console.log('Output/download regression passed (empty alt, scoped link, original filename).');
+
+    resultMode = 'limit';
+    rmSync(join(dir, 'downloads'), { recursive: true, force: true });
+    task = generate(page);
+    await assert.rejects(Promise.race([
+      task,
+      new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error('Usage limit was not reported')), 20_000); }),
+    ]), /Guest quota reached/);
+    clearTimeout(deadline);
+    assert.ok(!existsSync(join(dir, 'downloads')), 'quota errors must not download an image');
+    console.log('Output/download and usage-limit regressions passed.');
   } finally {
     clearTimeout(deadline);
     await page.close();

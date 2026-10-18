@@ -70,7 +70,17 @@ export async function run(page: Page): Promise<void> {
   // Gradio labels the component, but its rendered image has alt="".
   const output = page.getByText('Output', { exact: true }).locator('..');
   const image = output.locator('img');
-  await image.waitFor({ state: 'visible', timeout: GENERATION_TIMEOUT });
+  const usageLimit = page.getByText(
+    /(?:quota.{0,60}(?:reached|exceeded|exhausted)|(?:reached|exceeded|exhausted).{0,60}quota|(?:usage|rate) limit)/i,
+  ).first();
+  const result = await Promise.race([
+    image.waitFor({ state: 'visible', timeout: GENERATION_TIMEOUT }).then(() => 'image' as const),
+    usageLimit.waitFor({ state: 'visible', timeout: GENERATION_TIMEOUT }).then(() => 'limit' as const),
+  ]);
+  if (result === 'limit') {
+    const message = (await usageLimit.innerText()).trim();
+    throw new Error(message || 'Hugging Face generation limit reached');
+  }
   await image.hover();
   const downloadLink = output.getByTestId('download-link');
   await downloadLink.waitFor({ state: 'visible' });

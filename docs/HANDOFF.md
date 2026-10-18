@@ -1,10 +1,18 @@
 # Handoff: Complete Anima V1 image generation
 
-**Date:** 2026-10-05
+**Originally recorded:** 2026-10-05 · **Updated:** 2026-10-18
 
-**Status:** In progress — waiting for manual Hugging Face sign-in
+**Status:** Installed-Firefox generation/download verified; jailed downloads have a separate temp-path issue.
 
-## Context
+## Latest verification
+
+- The Nix-packaged task completed a real generation with installed Firefox and the named `privacy` profile, using `generation.example.json` and user-authorized HF quota.
+- The browser suggested `image.webp`; the task saved `downloads/image.webp` unchanged. Verified a valid 1408 × 1408 WebP, 101750 bytes.
+- Gradio 6.14 renders the output image with `alt=""`, independently of its visible Output component label. Scope the image and `download-link` to that component rather than looking for an image named Output.
+- The local output/download fixture passes with stock Firefox. With jailed Firefox it reaches `download.saveAs` but fails with ENOENT: the browser's artifact is in bubblewrap's private `/tmp`, invisible to the host-side runner. That requires a separate `replay_right` downloads-path/jail fix.
+- See the current README for commands. The remaining sections below are historical notes, not current resumption instructions.
+
+## Historical context (2026-10-05)
 
 The local JSON-to-Hugging-Face app is implemented and committed, but a live generation has not produced an image. The Anima V1 Space loaded, all request fields were populated, and Generate was clicked. Hugging Face then displayed **“Guest quota reached”** and requested sign-in; the app consequently timed out waiting for output. No `downloads/` directory or image exists yet.
 

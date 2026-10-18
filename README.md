@@ -56,6 +56,18 @@ cross-origin app navigation, retained query parameters, input events, and all fi
 )
 ```
 
+The output/download regression uses a local fixture (no HF requests or quota),
+including an empty-alt result image, an unrelated download, and the browser's
+suggested filename. With the selected Firefox profile closed:
+
+```sh
+nix run ../replay_right#run -- --browser firefox privacy ./tests/test-output-download.ts
+```
+
+Jailed downloads currently have a separate filesystem issue: Firefox writes its
+Playwright artifact inside bubblewrap's private `/tmp`, where the host-side runner
+cannot read it. The installed-Firefox flow is verified end to end.
+
 To check the current Hugging Face UI without starting a generation, close the
 selected Firefox profile and run:
 

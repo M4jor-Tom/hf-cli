@@ -67,13 +67,15 @@ export async function run(page: Page): Promise<void> {
   await populateForm(page, request);
   await page.getByRole('button', { name: 'Generate', exact: true }).click();
 
-  const output = page.getByRole('img', { name: 'Output', exact: true });
-  await output.waitFor({ state: 'visible', timeout: GENERATION_TIMEOUT });
-  await output.hover();
-  const downloadButton = page.getByRole('button', { name: /download/i });
-  await downloadButton.waitFor({ state: 'visible' });
+  // Gradio labels the component, but its rendered image has alt="".
+  const output = page.getByText('Output', { exact: true }).locator('..');
+  const image = output.locator('img');
+  await image.waitFor({ state: 'visible', timeout: GENERATION_TIMEOUT });
+  await image.hover();
+  const downloadLink = output.getByTestId('download-link');
+  await downloadLink.waitFor({ state: 'visible' });
   const downloadPromise = page.waitForEvent('download', { timeout: 30_000 });
-  await downloadButton.click();
+  await downloadLink.click();
   const name = await saveDownload(await downloadPromise);
   console.log(`Downloaded downloads/${name}`);
 }

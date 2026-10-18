@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import type { Page } from 'playwright-core';
 import { openSpaceApp, populateForm } from '../task.ts';
 
-const request = {
+export const request = {
   positive_prompt: 'A red fox 🦊 in a snowy forest\nsoft morning light',
   negative_prompt: 'blurry, watermark',
   prepend_recommended_prefix: true,
@@ -15,7 +15,7 @@ const request = {
   seed: 42,
 };
 
-const form = `
+export const form = `
   <label for="prompt">Prompt</label><textarea id="prompt">old prompt</textarea>
   <label for="negative">Negative prompt</label><textarea id="negative">old negative</textarea>
   <label for="prefix">Prepend recommended prefix: yes</label><input id="prefix" type="checkbox">

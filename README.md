@@ -35,6 +35,8 @@ extensions are used, and the app does not overwrite `user.js` with automation
 preferences. This mode uses installed `firefox` from `PATH`, bypasses bubblewrap,
 and does not use `./cookies`. Without the option, the existing jailed flow remains.
 Using stock Firefox does not guarantee that Hugging Face will lift an IP block.
+The script follows the Space iframe's URL into a top-level page, keeping its query
+parameters, because stock Firefox/BiDi can drop input and clicks across frame origins.
 
 ## Check
 
@@ -43,10 +45,20 @@ nix flake check
 node tests/test-save-download.mjs
 ```
 
-The validation contract is also covered by the flake check. The local form fixture checks locator behavior offline; to check the current Hugging Face UI without starting a generation, run the live smoke test from this repo:
+The validation contract is also covered by the flake check. The form fixture tests
+cross-origin app navigation, retained query parameters, input events, and all fields offline:
 
 ```sh
-HF_CLI_DIR="$(pwd)"
-(cd ../replay_right && nix develop . --command node --experimental-strip-types \
-  pw/runner.ts "$HF_CLI_DIR/cookies" "$HF_CLI_DIR/tests/test-live-form-mapping.ts")
+(
+  profile="$(mktemp -d)"
+  trap 'rm -rf "$profile"' EXIT
+  nix run ../replay_right#run -- "$profile" ./tests/test-form-mapping.ts
+)
+```
+
+To check the current Hugging Face UI without starting a generation, close the
+selected Firefox profile and run:
+
+```sh
+nix run ../replay_right#run -- --browser firefox privacy ./tests/test-live-form-mapping.ts
 ```

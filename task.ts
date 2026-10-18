@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import type { FrameLocator, Page } from 'playwright-core';
+import type { Page } from 'playwright-core';
 import { saveDownload } from './save-download.mjs';
 
 type GenerationRequest = {
@@ -14,12 +14,10 @@ type GenerationRequest = {
   seed: number;
 };
 
-type FormPage = Page | FrameLocator;
-
 const SPACE_URL = 'https://huggingface.co/spaces/mrfakename/anima-v1';
 const GENERATION_TIMEOUT = 10 * 60 * 1000;
 
-async function setSlider(page: FormPage, label: string, value: number): Promise<void> {
+async function setSlider(page: Page, label: string, value: number): Promise<void> {
   const slider = page.getByRole('slider', { name: `range slider for ${label}`, exact: true });
   await slider.evaluate((element, nextValue) => {
     if (!(element instanceof HTMLInputElement)) throw new Error('Expected a range input');
@@ -33,7 +31,7 @@ async function setSlider(page: FormPage, label: string, value: number): Promise<
   if (actual !== value) throw new Error(`${label}: expected ${value}, got ${actual}`);
 }
 
-export async function populateForm(page: FormPage, request: GenerationRequest): Promise<void> {
+export async function populateForm(page: Page, request: GenerationRequest): Promise<void> {
   await page.getByLabel('Prompt', { exact: true }).fill(request.positive_prompt);
   await page.getByLabel('Negative prompt', { exact: true }).fill(request.negative_prompt);
   await page.getByRole('checkbox', { name: /^Prepend recommended prefix:/ }).setChecked(
@@ -47,21 +45,32 @@ export async function populateForm(page: FormPage, request: GenerationRequest): 
   await page.getByLabel('Seed (-1 random)', { exact: true }).fill(String(request.seed));
 }
 
+export async function openSpaceApp(page: Page): Promise<void> {
+  const iframe = page.locator('iframe[aria-label="Space app"]');
+  // Let the embedded navigation settle before navigating to the same URL.
+  await iframe.contentFrame().getByLabel('Prompt', { exact: true }).waitFor({ state: 'visible', timeout: 60_000 });
+  const src = await iframe.getAttribute('src');
+  if (!src) throw new Error('Space app iframe has no URL');
+  // Stock Firefox/BiDi drops input and clicks across frame origins. Open the
+  // same app as a top-level page, retaining any authentication/theme query.
+  await page.goto(new URL(src, page.url()).href, { waitUntil: 'domcontentloaded' });
+  await page.getByLabel('Prompt', { exact: true }).waitFor({ state: 'visible', timeout: 60_000 });
+}
+
 export async function run(page: Page): Promise<void> {
   const inputPath = process.env.HF_CLI_INPUT;
   if (!inputPath) throw new Error('HF_CLI_INPUT is not set; run through the flake app');
   const request = JSON.parse(await readFile(inputPath, 'utf8')) as GenerationRequest;
 
   await page.goto(SPACE_URL, { waitUntil: 'domcontentloaded' });
-  const app = page.frameLocator('iframe[aria-label="Space app"]');
-  await app.getByLabel('Prompt', { exact: true }).waitFor({ state: 'visible', timeout: 60_000 });
-  await populateForm(app, request);
-  await app.getByRole('button', { name: 'Generate', exact: true }).click();
+  await openSpaceApp(page);
+  await populateForm(page, request);
+  await page.getByRole('button', { name: 'Generate', exact: true }).click();
 
-  const output = app.getByRole('img', { name: 'Output', exact: true });
+  const output = page.getByRole('img', { name: 'Output', exact: true });
   await output.waitFor({ state: 'visible', timeout: GENERATION_TIMEOUT });
   await output.hover();
-  const downloadButton = app.getByRole('button', { name: /download/i });
+  const downloadButton = page.getByRole('button', { name: /download/i });
   await downloadButton.waitFor({ state: 'visible' });
   const downloadPromise = page.waitForEvent('download', { timeout: 30_000 });
   await downloadButton.click();

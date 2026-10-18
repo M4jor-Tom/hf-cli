@@ -36,6 +36,16 @@ try {
   const args = JSON.parse(readFileSync(log, 'utf8'));
   assert.equal(args[args.indexOf('--profile') + 1], profile);
   assert.ok(args.includes('--remote-debugging-port=0'));
+  assert.ok(args.includes('--headless'), 'headless remains the default');
+  rmSync(log);
+
+  const headed = run(generateApp, ['--headed', '--browser', 'firefox', 'privacy', request]);
+  assert.notEqual(headed.status, 0, 'fake automation browser must stop before navigation');
+  assert.ok(existsSync(log), `headed generation must launch Firefox: ${headed.stderr}`);
+  const headedArgs = JSON.parse(readFileSync(log, 'utf8'));
+  assert.equal(headedArgs[headedArgs.indexOf('--profile') + 1], profile);
+  assert.ok(!headedArgs.includes('--headless'), 'headed mode must not pass Firefox --headless');
+  assert.ok(headedArgs.includes('--foreground'), 'headed mode must pass Firefox --foreground');
   rmSync(log);
 
   const invalid = join(dir, 'invalid.json');

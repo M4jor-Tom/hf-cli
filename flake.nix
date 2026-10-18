@@ -17,11 +17,13 @@
         cp ${./save-download.mjs} "$out/save-download.mjs"
         printf '%s\n' '{"type":"module"}' > "$out/package.json"
       '';
-      baseApp = replay_right.lib.mkApp {
-        inherit pkgs;
+      automationApp = headless: replay_right.lib.mkApp {
+        inherit pkgs headless;
         cookiesDir = "./cookies";
         script = "${taskBundle}/task.ts";
       };
+      baseApp = automationApp true;
+      headedApp = automationApp false;
       signupUrl = "https://huggingface.co/join";
       joinApp = pkgs.writeShellApplication {
         name = "hf-cli-join";
@@ -34,9 +36,14 @@
         runtimeInputs = [ pythonEnv pkgs.coreutils ];
         text = ''
           usage() {
-            echo "usage: nix run .#default -- [--browser firefox <profile-name>] <request.json>" >&2
+            echo "usage: nix run .#default -- [--headed] [--browser firefox <profile-name>] <request.json>" >&2
             exit 2
           }
+          headed=0
+          if [ "''${1:-}" = "--headed" ]; then
+            headed=1
+            shift
+          fi
           browser_args=()
           if [ "''${1:-}" = "--browser" ]; then
             [ "$#" -ge 4 ] || usage
@@ -47,7 +54,9 @@
           input="$(realpath -- "$1")"
           python3 ${./validate-request.py} ${./generation.schema.json} "$input"
           export HF_CLI_INPUT="$input"
-          exec ${baseApp.program} "''${browser_args[@]}"
+          runner=${baseApp.program}
+          if [ "$headed" -eq 1 ]; then runner=${headedApp.program}; fi
+          exec "$runner" "''${browser_args[@]}"
         '';
       };
     in {

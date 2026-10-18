@@ -26,8 +26,11 @@ To use a normal named Firefox profile outside the jail:
 nix run .#join -- --browser firefox privacy
 # Close that Firefox profile, then generate:
 nix run .#default -- --browser firefox privacy ./generation.example.json
+# Add --headed to watch the generation in Firefox:
+nix run .#default -- --headed --browser firefox privacy ./generation.example.json
 ```
 
+`--headed` opens the automation browser visibly; it is headless by default.
 `--browser firefox` requires a profile name (`default`, `privacy`, or another
 registered name). `privacy` is **not** a private window. Close that profile before
 each command; leave other profiles open. Your normal cookies, settings and

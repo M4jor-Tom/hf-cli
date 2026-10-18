@@ -40,8 +40,8 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1791236467,
-        "narHash": "sha256-9E9LZL3JYXBUPkTTXr/YbmO/8HIw2cXryifQwTXOokw=",
+        "lastModified": 1792325144,
+        "narHash": "sha256-Avwe3flpJhJEc0ypVZ/a02lYcxdg/jKD0TslTkL8bC4=",
         "path": "/home/theta/repos/replay_right",
         "type": "path"
       },

@@ -33,14 +33,21 @@
         name = "hf-image-generation";
         runtimeInputs = [ pythonEnv pkgs.coreutils ];
         text = ''
-          if [ "$#" -ne 1 ]; then
-            echo "usage: nix run .#default -- <request.json>" >&2
+          usage() {
+            echo "usage: nix run .#default -- [--browser firefox <profile-name>] <request.json>" >&2
             exit 2
+          }
+          browser_args=()
+          if [ "''${1:-}" = "--browser" ]; then
+            [ "$#" -ge 4 ] || usage
+            browser_args=("$1" "$2" "$3")
+            shift 3
           fi
+          [ "$#" -eq 1 ] || usage
           input="$(realpath -- "$1")"
           python3 ${./validate-request.py} ${./generation.schema.json} "$input"
           export HF_CLI_INPUT="$input"
-          exec ${baseApp.program}
+          exec ${baseApp.program} "''${browser_args[@]}"
         '';
       };
     in {
@@ -64,10 +71,10 @@
           touch "$out"
         '';
 
-        join-start-url = pkgs.runCommand "hf-cli-join-start-url" {
-          nativeBuildInputs = [ pkgs.gnugrep ];
+        browser-options = pkgs.runCommand "hf-cli-browser-options" {
+          nativeBuildInputs = [ pkgs.nodejs_22 ];
         } ''
-          grep -Fq 'https://huggingface.co/join' ${joinApp}/bin/hf-cli-join
+          node ${./tests/test-browser-options.mjs} ${joinApp}/bin/hf-cli-join ${app}/bin/hf-image-generation ${./generation.example.json}
           touch "$out"
         '';
       };

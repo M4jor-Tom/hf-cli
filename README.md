@@ -18,6 +18,24 @@ nix run .#default -- ./generation.example.json
 
 Use any JSON file conforming to [`generation.schema.json`](generation.schema.json). The app validates it before launching Firefox. Downloads go in `downloads/` and keep the filename and extension suggested by the Space.
 
+## Use your installed Firefox
+
+To use a normal named Firefox profile outside the jail:
+
+```sh
+nix run .#join -- --browser firefox privacy
+# Close that Firefox profile, then generate:
+nix run .#default -- --browser firefox privacy ./generation.example.json
+```
+
+`--browser firefox` requires a profile name (`default`, `privacy`, or another
+registered name). `privacy` is **not** a private window. Close that profile before
+each command; leave other profiles open. Your normal cookies, settings and
+extensions are used, and the app does not overwrite `user.js` with automation
+preferences. This mode uses installed `firefox` from `PATH`, bypasses bubblewrap,
+and does not use `./cookies`. Without the option, the existing jailed flow remains.
+Using stock Firefox does not guarantee that Hugging Face will lift an IP block.
+
 ## Check
 
 ```sh

@@ -41,13 +41,16 @@
       },
       "locked": {
         "lastModified": 1792325144,
-        "narHash": "sha256-Avwe3flpJhJEc0ypVZ/a02lYcxdg/jKD0TslTkL8bC4=",
-        "path": "/home/theta/repos/replay_right",
-        "type": "path"
+        "narHash": "sha256-UHnEDzBS/A8w9dDXb2y5SePEB8D7u6sWmMI4Xr2IAp8=",
+        "owner": "M4jor-Tom",
+        "repo": "replay_right",
+        "rev": "936002b61a3cc17f89e671fd1a115ce1ed24d39a",
+        "type": "github"
       },
       "original": {
-        "path": "/home/theta/repos/replay_right",
-        "type": "path"
+        "owner": "M4jor-Tom",
+        "repo": "replay_right",
+        "type": "github"
       }
     },
     "root": {

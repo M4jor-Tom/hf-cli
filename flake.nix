@@ -2,7 +2,7 @@
   description = "hf-cli — generate images with the Anima V1 Hugging Face Space";
 
   inputs = {
-    replay_right.url = "path:/home/theta/repos/replay_right";
+    replay_right.url = "github:M4jor-Tom/replay_right";
     nixpkgs.follows = "replay_right/nixpkgs";
   };
 
@@ -15,6 +15,9 @@
         mkdir -p "$out"
         cp ${./task.ts} "$out/task.ts"
         cp ${./save-download.mjs} "$out/save-download.mjs"
+        cp ${./rename_image.sh} "$out/rename_image.sh"
+        cp ${./identify_image.sh} "$out/identify_image.sh"
+        patchShebangs "$out/"*.sh
         printf '%s\n' '{"type":"module"}' > "$out/package.json"
       '';
       automationApp = headless: replay_right.lib.mkApp {
@@ -33,27 +36,40 @@
       };
       app = pkgs.writeShellApplication {
         name = "hf-image-generation";
-        runtimeInputs = [ pythonEnv pkgs.coreutils ];
+        runtimeInputs = [ pythonEnv pkgs.coreutils pkgs.gitMinimal pkgs.util-linux ];
         text = ''
           usage() {
-            echo "usage: nix run .#default -- [--headed] [--browser firefox <profile-name>] <request.json>" >&2
+            echo "usage: nix run .#default -- [--headed] [--browser firefox <profile-name>] [--download-dir <path>] [--count N | -n N] <request.json>" >&2
             exit 2
           }
           headed=0
-          if [ "''${1:-}" = "--headed" ]; then
-            headed=1
-            shift
-          fi
+          count=1
           browser_args=()
-          if [ "''${1:-}" = "--browser" ]; then
-            [ "$#" -ge 4 ] || usage
-            browser_args=("$1" "$2" "$3")
-            shift 3
-          fi
+          download_dir="$HOME/Downloads"
+          while [ "$#" -gt 0 ]; do
+            case "$1" in
+              --headed) headed=1; shift ;;
+              --count|-n)
+                [ "$#" -ge 2 ] && [[ "$2" =~ ^[1-9][0-9]*$ ]] || usage
+                count="$2"
+                shift 2 ;;
+              --browser)
+                [ "$#" -ge 3 ] || usage
+                browser_args=("$1" "$2" "$3")
+                shift 3 ;;
+              --download-dir)
+                [ "$#" -ge 2 ] && [ -n "$2" ] || usage
+                download_dir="$2"
+                shift 2 ;;
+              --) shift; break ;;
+              -*) usage ;;
+              *) break ;;
+            esac
+          done
           [ "$#" -eq 1 ] || usage
           input="$(realpath -- "$1")"
           python3 ${./validate-request.py} ${./generation.schema.json} "$input"
-          export HF_CLI_INPUT="$input"
+          export HF_CLI_INPUT="$input" HF_CLI_DOWNLOAD_DIR="$download_dir" HF_CLI_COUNT="$count"
           runner=${baseApp.program}
           if [ "$headed" -eq 1 ]; then runner=${headedApp.program}; fi
           exec "$runner" "''${browser_args[@]}"
@@ -70,6 +86,13 @@
           nativeBuildInputs = [ pythonEnv ];
         } ''
           python3 ${./tests/test-request-validation.py} ${./validate-request.py} ${./generation.schema.json} ${./generation.example.json}
+          touch "$out"
+        '';
+
+        save-download = pkgs.runCommand "hf-cli-save-download" {
+          nativeBuildInputs = [ pkgs.nodejs_22 pkgs.gitMinimal pkgs.util-linux ];
+        } ''
+          node ${self}/tests/test-save-download.mjs
           touch "$out"
         '';
 

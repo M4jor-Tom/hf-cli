@@ -61,31 +61,36 @@ export async function run(page: Page): Promise<void> {
   const inputPath = process.env.HF_CLI_INPUT;
   if (!inputPath) throw new Error('HF_CLI_INPUT is not set; run through the flake app');
   const request = JSON.parse(await readFile(inputPath, 'utf8')) as GenerationRequest;
+  const count = Number(process.env.HF_CLI_COUNT ?? '1');
+  if (!Number.isSafeInteger(count) || count < 1) throw new Error('Count must be a positive integer');
 
-  await page.goto(SPACE_URL, { waitUntil: 'domcontentloaded' });
-  await openSpaceApp(page);
-  await populateForm(page, request);
-  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  for (let i = 0; i < count; i++) {
+    // Reload for each generation so a previous image cannot satisfy the wait.
+    await page.goto(SPACE_URL, { waitUntil: 'domcontentloaded' });
+    await openSpaceApp(page);
+    await populateForm(page, request);
+    await page.getByRole('button', { name: 'Generate', exact: true }).click();
 
-  // Gradio labels the component, but its rendered image has alt="".
-  const output = page.getByText('Output', { exact: true }).locator('..');
-  const image = output.locator('img');
-  const usageLimit = page.getByText(
-    /(?:quota.{0,60}(?:reached|exceeded|exhausted)|(?:reached|exceeded|exhausted).{0,60}quota|(?:usage|rate) limit)/i,
-  ).first();
-  const result = await Promise.race([
-    image.waitFor({ state: 'visible', timeout: GENERATION_TIMEOUT }).then(() => 'image' as const),
-    usageLimit.waitFor({ state: 'visible', timeout: GENERATION_TIMEOUT }).then(() => 'limit' as const),
-  ]);
-  if (result === 'limit') {
-    const message = (await usageLimit.innerText()).trim();
-    throw new Error(message || 'Hugging Face generation limit reached');
+    // Gradio labels the component, but its rendered image has alt="".
+    const output = page.getByText('Output', { exact: true }).locator('..');
+    const image = output.locator('img');
+    const usageLimit = page.getByText(
+      /(?:quota.{0,60}(?:reached|exceeded|exhausted)|(?:reached|exceeded|exhausted).{0,60}quota|(?:usage|rate) limit)/i,
+    ).first();
+    const result = await Promise.race([
+      image.waitFor({ state: 'visible', timeout: GENERATION_TIMEOUT }).then(() => 'image' as const),
+      usageLimit.waitFor({ state: 'visible', timeout: GENERATION_TIMEOUT }).then(() => 'limit' as const),
+    ]);
+    if (result === 'limit') {
+      const message = (await usageLimit.innerText()).trim();
+      throw new Error(message || 'Hugging Face generation limit reached');
+    }
+    await image.hover();
+    const downloadLink = output.getByTestId('download-link');
+    await downloadLink.waitFor({ state: 'visible' });
+    const downloadPromise = page.waitForEvent('download', { timeout: 30_000 });
+    await downloadLink.click();
+    const path = await saveDownload(await downloadPromise, process.env.HF_CLI_DOWNLOAD_DIR, inputPath);
+    console.log(`Downloaded ${path}`);
   }
-  await image.hover();
-  const downloadLink = output.getByTestId('download-link');
-  await downloadLink.waitFor({ state: 'visible' });
-  const downloadPromise = page.waitForEvent('download', { timeout: 30_000 });
-  await downloadLink.click();
-  const name = await saveDownload(await downloadPromise);
-  console.log(`Downloaded downloads/${name}`);
 }

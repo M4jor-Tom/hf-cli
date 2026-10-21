@@ -1,6 +1,6 @@
 # hf-cli
 
-A Nix-flake consumer of [`replay_right`](../replay_right) for generating images in the [Anima V1 Hugging Face Space](https://huggingface.co/spaces/mrfakename/anima-v1).
+A Nix-flake consumer of [`replay_right`](https://github.com/M4jor-Tom/replay_right) for generating images in the [Anima V1 Hugging Face Space](https://huggingface.co/spaces/mrfakename/anima-v1).
 
 ## Generate
 
@@ -16,7 +16,23 @@ Close that browser, then select a JSON request file:
 nix run .#default -- ./generation.example.json
 ```
 
-Use any JSON file conforming to [`generation.schema.json`](generation.schema.json). The app validates it before launching Firefox. Downloads go in `downloads/` and keep the filename and extension suggested by the Space.
+Use any JSON file conforming to [`generation.schema.json`](generation.schema.json). The app validates it before launching Firefox. Downloads go in `~/Downloads/` by default. `rename_image.sh` names each image `<request-filename>_<sha1>_<uuid>`, retaining the downloaded extension to avoid collisions. Its imported `identify_image.sh` also attempts to archive the request with a Git commit; archive failures warn but do not prevent saving the image. Override the directory with `--download-dir`:
+
+```sh
+nix run .#default -- --download-dir ./images ./generation.example.json
+```
+
+Generate five images sequentially in one browser session with `--count` (or `-n`):
+
+```sh
+nix run .#default -- --count 5 ./generation.example.json
+```
+
+The count must be a positive integer and defaults to `1`. Each generation uses the same request; use `"seed": -1` for random images. A failure stops the batch and keeps completed downloads.
+
+Options may be combined in any order before the request file. The command prints each saved file's absolute path.
+
+The flake uses the GitHub `replay_right` input, pinned by `flake.lock`. To refresh it to upstream HEAD, run `nix flake update replay_right`.
 
 If Hugging Face reports a generation quota or usage limit, its message is printed and the command exits non-zero.
 
@@ -57,16 +73,17 @@ cross-origin app navigation, retained query parameters, input events, and all fi
 (
   profile="$(mktemp -d)"
   trap 'rm -rf "$profile"' EXIT
-  nix run ../replay_right#run -- "$profile" ./tests/test-form-mapping.ts
+  nix run github:M4jor-Tom/replay_right#run -- "$profile" ./tests/test-form-mapping.ts
 )
 ```
 
 The output/download regression uses a local fixture (no HF requests or quota),
-including an empty-alt result image, an unrelated download, and the browser's
-suggested filename. With the selected Firefox profile closed:
+including an empty-alt result image, an unrelated download, the default and custom
+download directories, five-image batches, collision-free names, and mid-batch quota
+failures. With the selected Firefox profile closed:
 
 ```sh
-nix run ../replay_right#run -- --browser firefox privacy ./tests/test-output-download.ts
+nix run github:M4jor-Tom/replay_right#run -- --browser firefox privacy ./tests/test-output-download.ts
 ```
 
 Jailed downloads currently have a separate filesystem issue: Firefox writes its
@@ -77,5 +94,5 @@ To check the current Hugging Face UI without starting a generation, close the
 selected Firefox profile and run:
 
 ```sh
-nix run ../replay_right#run -- --browser firefox privacy ./tests/test-live-form-mapping.ts
+nix run github:M4jor-Tom/replay_right#run -- --browser firefox privacy ./tests/test-live-form-mapping.ts
 ```

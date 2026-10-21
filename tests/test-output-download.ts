@@ -13,14 +13,29 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 export async function run(page: Page): Promise<void> {
   const dir = mkdtempSync(join(tmpdir(), 'hf-cli-download-'));
   const cwd = process.cwd();
-  const previousInput = process.env.HF_CLI_INPUT;
+  const previousEnv = {
+    HOME: process.env.HOME,
+    HF_CLI_INPUT: process.env.HF_CLI_INPUT,
+    HF_CLI_DOWNLOAD_DIR: process.env.HF_CLI_DOWNLOAD_DIR,
+    HF_CLI_COUNT: process.env.HF_CLI_COUNT,
+  };
   let deadline: ReturnType<typeof setTimeout> | undefined;
   let task: Promise<void> | undefined;
   let resultMode: 'image' | 'limit' = 'image';
+  let downloadName = 'browser.original.png';
+  let generations = 0;
+  let downloads = 0;
+  let limitAt = 0;
   const server = createServer((req, res) => {
-    if (req.url === '/image' || req.url === '/download') {
+    if (req.url === '/generate') {
+      generations++;
+      res.end(resultMode === 'limit' || generations === limitAt ? 'limit' : 'result');
+    } else if (req.url === '/image' || req.url === '/download') {
       res.setHeader('content-type', 'image/png');
-      if (req.url === '/download') res.setHeader('content-disposition', 'attachment; filename="browser.original.png"');
+      if (req.url === '/download') {
+        downloads++;
+        res.setHeader('content-disposition', `attachment; filename="${downloadName}"`);
+      }
       res.end(png);
     } else {
       const { port } = server.address() as { port: number };
@@ -29,7 +44,7 @@ export async function run(page: Page): Promise<void> {
         <div class="block"><label>Unrelated preview</label><img src="/image" alt="">
           <a data-testid="download-link" href="/wrong"><button aria-label="Download">Wrong download</button></a>
         </div>
-        <button onclick="document.getElementById('${resultMode === 'limit' ? 'limit' : 'result'}').hidden = false">Generate</button>
+        <button onclick="fetch('/generate').then(r => r.text()).then(id => document.getElementById(id).hidden = false)">Generate</button>
         <div id="limit" role="alert" hidden>Guest quota reached</div>
         <div class="block"><label data-testid="block-label">Output</label>
           <div id="result" hidden><img src="/image" alt="">
@@ -54,34 +69,79 @@ export async function run(page: Page): Promise<void> {
   try {
     writeFileSync(join(dir, 'request.json'), JSON.stringify(request));
     process.env.HF_CLI_INPUT = join(dir, 'request.json');
+    process.env.HOME = dir;
+    delete process.env.HF_CLI_COUNT;
     process.chdir(dir);
-    // The production wait is ten minutes; a broken fixture must fail promptly.
+    // The request identity replaces the suggested basename, retaining its format.
+    for (const [outputDir, expectedName] of [
+      [undefined, 'browser.original.png'], ['custom output', 'browser.custom.png'],
+    ] as const) {
+      downloadName = expectedName;
+      if (outputDir === undefined) delete process.env.HF_CLI_DOWNLOAD_DIR;
+      else process.env.HF_CLI_DOWNLOAD_DIR = outputDir;
+      // The production wait is ten minutes; a broken fixture must fail promptly.
+      task = generate(page);
+      await Promise.race([
+        task,
+        new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error('Visible Gradio result was not downloaded')), 20_000); }),
+      ]);
+      clearTimeout(deadline);
+      const destination = join(dir, outputDir ?? 'Downloads');
+      const files = readdirSync(destination);
+      assert.equal(files.length, 1);
+      assert.match(files[0], /^request\.json_[0-9a-f]{40}_[0-9a-f-]{36}\.png$/);
+      assert.deepEqual(readFileSync(join(destination, files[0])), png);
+      rmSync(destination, { recursive: true, force: true });
+    }
+
+    process.env.HF_CLI_COUNT = '5';
+    generations = downloads = 0;
     task = generate(page);
     await Promise.race([
       task,
-      new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error('Visible Gradio result was not downloaded')), 20_000); }),
+      new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error('Batch did not finish')), 40_000); }),
     ]);
     clearTimeout(deadline);
-    assert.deepEqual(readdirSync(join(dir, 'downloads')), ['browser.original.png']);
-    assert.deepEqual(readFileSync(join(dir, 'downloads/browser.original.png')), png);
+    assert.equal(generations, 5, 'submit each generation, never reuse stale output');
+    assert.equal(downloads, 5);
+    const destination = join(dir, 'custom output');
+    const files = readdirSync(destination);
+    assert.equal(files.length, 5, 'keep all five downloads despite identical suggested filenames');
+    for (const file of files) assert.deepEqual(readFileSync(join(destination, file)), png);
+    rmSync(destination, { recursive: true, force: true });
 
-    resultMode = 'limit';
-    rmSync(join(dir, 'downloads'), { recursive: true, force: true });
+    // A quota error mid-batch must preserve completed files and stop submission.
+    generations = downloads = 0;
+    limitAt = 2;
     task = generate(page);
     await assert.rejects(Promise.race([
       task,
       new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error('Usage limit was not reported')), 20_000); }),
     ]), /Guest quota reached/);
     clearTimeout(deadline);
-    assert.ok(!existsSync(join(dir, 'downloads')), 'quota errors must not download an image');
-    console.log('Output/download and usage-limit regressions passed.');
+    assert.equal(generations, 2, 'stop the batch at the first quota error');
+    assert.equal(downloads, 1);
+    assert.equal(readdirSync(destination).length, 1, 'retain completed images on failure');
+    rmSync(destination, { recursive: true, force: true });
+
+    resultMode = 'limit';
+    task = generate(page);
+    await assert.rejects(Promise.race([
+      task,
+      new Promise<never>((_, reject) => { deadline = setTimeout(() => reject(new Error('Usage limit was not reported')), 20_000); }),
+    ]), /Guest quota reached/);
+    clearTimeout(deadline);
+    assert.ok(!existsSync(destination), 'quota errors must not download an image');
+    console.log('Output/download, five-image batch, and usage-limit regressions passed.');
   } finally {
     clearTimeout(deadline);
     await page.close();
     await task?.catch(() => {});
     process.chdir(cwd);
-    if (previousInput === undefined) delete process.env.HF_CLI_INPUT;
-    else process.env.HF_CLI_INPUT = previousInput;
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     rmSync(dir, { recursive: true, force: true });
   }
